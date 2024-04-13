@@ -1,12 +1,18 @@
 using Flux
 using Flux.Data: DataLoader
-using Flux: onecold, logitcrossentropy, throttle, params
+using Flux: onehotbatch, onecold, logitcrossentropy, throttle, params
+using Flux: Chain, Dense, Adam
 using CUDA
+using CUDA: has_cuda, allowscalar
 using MLDatasets
+using MLDatasets.MLUtils
+using MLDatasets.MLUtils: flatten
 
-if has_cuda()
+if CUDA.has_cuda()
     @info "CUDA: On"
     CUDA.allowscalar(false)
+else
+    @info "CUDA: Off"
 end
 
 Base.@kwdef mutable struct Args
@@ -23,8 +29,8 @@ function get_mnist(args)
     xtrain, ytrain = MLDatasets.MNIST(split=:train)[:]#.traindata(Float32)
     xtest, ytest = MLDatasets.MNIST(split=:test)[:]#.testdata(Float32)
 
-    xtrain = Flux.flatten(xtrain)
-    xtest = Flux.flatten(xtest)
+    xtrain = MLUtils.flatten(xtrain)
+    xtest = MLUtils.flatten(xtest)
 
     ytrain = Flux.onehotbatch(ytrain, 0:9)
     ytest = Flux.onehotbatch(ytest, 0:9)
@@ -81,7 +87,7 @@ function train!(model, data, args; kws...)
 
     for epoch in 1:args.epochs
         @info "Epoch: $epoch"
-        Flux.train!(loss, params(model), train_data, opt)
+        Flux.train!(loss, Flux.params(model), train_data, opt)
         eval_callback()
     end
 
