@@ -16,6 +16,21 @@ Base.@kwdef mutable struct Args
     device::Function = cpu
 end
 
+function tabularize_matrix(xtrain, ytrain, layer_limit)
+    buffer = ""
+    for n in range(1, layer_limit)
+        buffer = string(buffer, "\nExpected number: ", ytrain[n], "\n")
+        for i in range(1, 28)
+            for j in range(1, 28) 
+                buffer = string(buffer, " | ", lpad(round(xtrain[:, i, n][j]; sigdigits=2), 5, "0"))
+            end
+            buffer = string(buffer, " | ", "\n")
+        end
+        buffer = string(buffer, "\n\n")
+    end
+    buffer
+end
+
 function get_mnist(args)
 
     ENV["DATADEPS_ALWAYS_ACCEPT"] = "true"
@@ -23,14 +38,7 @@ function get_mnist(args)
     xtrain, ytrain = MLDatasets.MNIST(split=:train)[:]#.traindata(Float32)
     xtest, ytest = MLDatasets.MNIST(split=:test)[:]#.testdata(Float32)
 
-    buffer = ""
-    for i in range(1, 28)
-        for j in range(1, 28) 
-            buffer = string(buffer, " | ", lpad(round(xtrain[:, i, 1][j]; sigdigits=2), 5, "0"))
-        end
-        buffer = string(buffer, " | ", "expected number here", "\n")
-    end
-    println(buffer)
+    println(tabularize_matrix(xtrain, ytrain, 2))
     # println(xtrain[1, 1, :])
     xtrain = Flux.flatten(xtrain)
     xtest = Flux.flatten(xtest)
