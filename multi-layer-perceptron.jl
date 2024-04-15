@@ -1,13 +1,13 @@
 using Flux
 using Flux.Data: DataLoader
 using Flux: onecold, logitcrossentropy, throttle, params
-using CUDA
+# using CUDA
 using MLDatasets
 
-if has_cuda()
-    @info "CUDA: On"
-    CUDA.allowscalar(false)
-end
+# if has_cuda()
+#     @info "CUDA: On"
+#     CUDA.allowscalar(false)
+# end
 
 Base.@kwdef mutable struct Args
     learning_rate::Float64 = 3e-4
@@ -23,6 +23,15 @@ function get_mnist(args)
     xtrain, ytrain = MLDatasets.MNIST(split=:train)[:]#.traindata(Float32)
     xtest, ytest = MLDatasets.MNIST(split=:test)[:]#.testdata(Float32)
 
+    buffer = ""
+    for i in range(1, 28)
+        for j in range(1, 28) 
+            buffer = string(buffer, " | ", lpad(round(xtrain[:, i, 1][j]; sigdigits=2), 5, "0"))
+        end
+        buffer = string(buffer, " | ", "expected number here", "\n")
+    end
+    println(buffer)
+    # println(xtrain[1, 1, :])
     xtrain = Flux.flatten(xtrain)
     xtest = Flux.flatten(xtest)
 
@@ -91,5 +100,5 @@ end
 
 args = Args()
 data = get_mnist(args)
-model = build_model()
-train!(model, data, args)
+# model = build_model()
+# train!(model, data, args)
