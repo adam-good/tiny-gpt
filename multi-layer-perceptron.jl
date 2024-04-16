@@ -1,12 +1,14 @@
 using Flux
 using Flux.Data: DataLoader
-using Flux: onehotbatch, onecold, logitcrossentropy, throttle, params
-using Flux: Chain, Dense, Adam
+using Flux: train!, onehotbatch, onecold, logitcrossentropy, throttle, params
+using Flux: cpu, gpu
+using Flux: Chain, Dense, Adam, setup
 using CUDA
 using CUDA: has_cuda, allowscalar
 using MLDatasets
 using MLDatasets.MLUtils
 using MLDatasets.MLUtils: flatten
+using ProgressMeter
 
 if CUDA.has_cuda()
     @info "CUDA: On"
@@ -15,11 +17,26 @@ else
     @info "CUDA: Off"
 end
 
-Base.@kwdef mutable struct Args
+Base.@kwdef mutable struct TrainingArgs
     learning_rate::Float64 = 3e-4
     batchsize::Int = 1024
     epochs::Int = 10
     device::Function = cpu
+end
+
+function build_feedforward(layer_sizes::Vector{Int}, activation_fns::Vector{Function})
+    num_layers = length(layer_sizes) - 1
+    if num_layers != length(activation_fns)
+        exit(1)
+    end
+    layer_params = zip(
+        layer_sizes[1:num_layers],
+        layer_sizes[2:num_layers+1],
+        activation_fns
+    )
+    Chain(
+        [Dense(x, y, fn) for (x,y,fn) in layer_params]...
+    )
 end
 
 function get_mnist(args)
@@ -43,59 +60,53 @@ function get_mnist(args)
 
 end
 
-function build_model(; input_size=(28,28,1), output_size=10)
-    Chain(
-        Dense(prod(input_size), 32, relu),
-        Dense(32, output_size)
-    )
-end
-
-function loss_all(dataloader, model)
-    loss = 0f0
-    for (x,y) in dataloader
-        loss += logitcrossentropy(model(x), y)
-    end
-    loss / length(dataloader)
-end
-
 function accuracy(dataloader, model)
     acc = 0
     for (x,y) in dataloader
-        # x̂ = onecold(cpu(model(x)))
-        # y = onecold(cpu(y))*1
-        acc += sum(onecold(cpu(model(x))) .== onecold(cpu(y)))*1 / size(x,2)
+        ŷ = onecold(model(x) |> cpu)
+        y = onecold(y |> cpu)
+        acc += sum(ŷ .== y) / size(x, 2)
     end
     acc / length(dataloader)
 end
 
-function train!(model, data, args; kws...)
+function train_model!(model, data, args; kws...)
     @info "Training Model"
     @info "Learning Rate: $(args.learning_rate)"
     @info "Epochs: $(args.epochs)"
     @info "Device: $(args.device)"
     train_data, test_data = data
 
-    train_data = args.device.(train_data)
-    test_data = args.device.(test_data)
-    model = args.device(model)
+    train_data = train_data .|> args.device
+    test_data = test_data .|> args.device
+    model = model |> args.device
 
     loss(x,y) = logitcrossentropy(model(x), y)
 
-    opt = Adam(args.learning_rate)
+    opt = Flux.setup(Adam(args.learning_rate), model)
 
-    eval_callback = () -> @show(loss_all(train_data, model))
-
-    for epoch in 1:args.epochs
-        @info "Epoch: $epoch"
-        Flux.train!(loss, Flux.params(model), train_data, opt)
-        eval_callback()
+    @showprogress for epoch in 1:args.epochs
+        # @info "Epoch: $epoch"
+        Flux.train!(model, train_data, opt) do m, x, y
+            ŷ = m(x)
+            Flux.logitcrossentropy(ŷ, y)
+        end
     end
 
     @show accuracy(train_data, model)
     @show accuracy(test_data, model)
 end
 
-args = Args()
+
+img_shape = (28,28,1)
+num_classes = 10
+layer_sizes = [prod(img_shape), 128, 32, num_classes]
+activation_functions = [sigmoid, sigmoid, identity]
+model = build_feedforward(layer_sizes, activation_functions)
+
+@info "Model: "
+display(model)
+
+args = TrainingArgs()
 data = get_mnist(args)
-model = build_model()
-train!(model, data, args)
+train_model!(model, data, args)
