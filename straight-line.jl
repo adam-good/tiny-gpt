@@ -20,7 +20,7 @@ data = [(x_train, y_train)]
 NUM_EPOCHS = 200
 for epoch in 1:NUM_EPOCHS
     train!(loss, predict, data, opt)
-    if epoch % NUM_EPOCHS//10 == 0
+    if epoch % NUM_EPOCHS // 10 == 0
         @info "Epoch $(epoch) --> $(loss(predict, x_test, y_test))"
     end
 end
