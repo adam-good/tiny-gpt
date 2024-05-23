@@ -17,7 +17,8 @@ opt = Descent()
 
 @info "Initial Loss: $(loss(predict, x_test, y_test))"
 data = [(x_train, y_train)]
-NUM_EPOCHS = 200
+
+NUM_EPOCHS = 100
 for epoch in 1:NUM_EPOCHS
     train!(loss, predict, data, opt)
     if epoch % NUM_EPOCHS // 10 == 0
